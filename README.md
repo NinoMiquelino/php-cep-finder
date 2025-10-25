@@ -47,7 +47,7 @@ Este projeto simula uma funcionalidade essencial de e-commerce e cadastros: a bu
 ## 🧩 Estrutura do Projeto
 
 ```
-php-image-uploader/
+php-cep-finder/
 ├── index.html
 ├── README.md
 ├── .gitignore
