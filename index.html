@@ -1,0 +1,255 @@
+<!DOCTYPE html>
+<html lang="pt-br">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Buscador de Endereço por CEP</title>
+     <meta name="author" content="Onivaldo Miquelino">          
+    <script src="https://cdn.tailwindcss.com"></script>
+    <style> 
+        body { font-family: ui-sans-serif, system-ui; } 
+    </style>
+</head>
+<body class="bg-gray-50 min-h-screen p-6 flex justify-center items-start">
+
+    <div class="w-full max-w-2xl bg-white p-8 rounded-xl shadow-2xl mt-12">
+        <h1 class="text-3xl font-bold text-center text-indigo-700 mb-8">Consulta Rápida de CEP</h1>
+        
+        <form id="addressForm" class="space-y-6">
+            
+            <div>
+                <label for="cep" class="block text-sm font-medium text-gray-700">CEP</label>
+                
+                <div class="mt-1 flex items-start space-x-3">
+                    
+                    <input type="text" id="cep" name="cep" required maxlength="9" 
+                           placeholder="00000-000"
+                           class="block w-40 border border-gray-300 rounded-lg p-3 focus:border-indigo-500 transition duration-150">
+                    
+                    <button type="button" id="search-button" 
+                            class="bg-indigo-600 hover:bg-indigo-700 text-white font-semibold py-3 px-4 rounded-lg transition duration-150 flex items-center justify-center h-12">
+                        Buscar
+                    </button>
+                    
+                </div>
+                
+                <div class="mt-2 flex items-center space-x-2">
+                    <span id="loading-spinner" class="hidden animate-spin rounded-full h-5 w-5 border-t-2 border-b-2 border-indigo-600"></span>
+                    <p id="status-message" class="text-sm text-gray-600"></p>
+                </div>
+            </div>
+
+            <div class="grid grid-cols-1 gap-6 md:grid-cols-3">
+                 <div class="md:col-span-2">
+                    <label for="logradouro" class="block text-sm font-medium text-gray-700">Rua/Logradouro</label>
+                    <input type="text" id="logradouro" name="logradouro" readonly
+                           class="mt-1 block w-full border border-gray-300 rounded-lg p-3 bg-gray-100 text-gray-700">
+                </div>
+                <div>
+                    <label for="numero" class="block text-sm font-medium text-gray-700">Número</label>
+                    <input type="text" id="numero" name="numero" required
+                           class="mt-1 block w-full border border-gray-300 rounded-lg p-3 focus:border-indigo-500">
+                </div>
+            </div>
+
+            <div>
+                <label for="bairro" class="block text-sm font-medium text-gray-700">Bairro</label>
+                <input type="text" id="bairro" name="bairro" readonly
+                       class="mt-1 block w-full border border-gray-300 rounded-lg p-3 bg-gray-100 text-gray-700">
+            </div>
+
+            <div class="grid grid-cols-1 md:grid-cols-3 gap-6">
+                <div class="md:col-span-2">
+                    <label for="localidade" class="block text-sm font-medium text-gray-700">Cidade</label>
+                    <input type="text" id="localidade" name="localidade" readonly
+                           class="mt-1 block w-full border border-gray-300 rounded-lg p-3 bg-gray-100 text-gray-700">
+                </div>
+                <div>
+                    <label for="uf" class="block text-sm font-medium text-gray-700">UF</label>
+                    <input type="text" id="uf" name="uf" readonly maxlength="2"
+                           class="mt-1 block w-full border border-gray-300 rounded-lg p-3 bg-gray-100 text-gray-700">
+                </div>
+            </div>
+            
+            <button type="submit" class="w-full bg-indigo-600 hover:bg-indigo-700 text-white font-bold py-3 px-4 rounded-lg transition mt-6">
+                Continuar
+            </button>
+        </form>
+    </div>
+    
+<script>
+        const API_URL = 'http://localhost:8001/src/api.php'; 
+
+        const cepInput = document.getElementById('cep');
+        const searchButton = document.getElementById('search-button'); 
+        const logradouroInput = document.getElementById('logradouro');
+        const bairroInput = document.getElementById('bairro');
+        const localidadeInput = document.getElementById('localidade');
+        const ufInput = document.getElementById('uf');
+        const loadingSpinner = document.getElementById('loading-spinner');
+        const statusMessage = document.getElementById('status-message');
+        const addressForm = document.getElementById('addressForm');
+        
+        const addressFields = [logradouroInput, bairroInput, localidadeInput, ufInput];
+        let isFieldsFilled = false; // Estado para rastrear se os campos estão preenchidos
+
+        function formatCEP(value) {
+            value = value.replace(/\D/g, ''); 
+            if (value.length > 5) {
+                value = value.substring(0, 5) + '-' + value.substring(5, 8);
+            }
+            return value;
+        }
+
+        function setAddressFieldsState(readOnly = true, clearValue = true) {
+            addressFields.forEach(field => {
+                if (clearValue) {
+                    field.value = '';
+                }
+                field.readOnly = readOnly;
+                field.classList.toggle('bg-gray-100', readOnly);
+                field.classList.toggle('bg-white', !readOnly);
+            });
+            if (clearValue) {
+                isFieldsFilled = false;
+            }
+        }
+        
+        function fillAddressFields(data) {
+            // Limpa antes de preencher
+            setAddressFieldsState(true, true); 
+
+            // Preenche e define readonly/editável
+            
+            const isLogradouroFilled = !!data.logradouro;
+            logradouroInput.value = data.logradouro || '';
+            logradouroInput.readOnly = isLogradouroFilled;
+            logradouroInput.classList.toggle('bg-gray-100', isLogradouroFilled);
+            logradouroInput.classList.toggle('bg-white', !isLogradouroFilled);
+
+            const isBairroFilled = !!data.bairro;
+            bairroInput.value = data.bairro || '';
+            bairroInput.readOnly = isBairroFilled;
+            bairroInput.classList.toggle('bg-gray-100', isBairroFilled);
+            bairroInput.classList.toggle('bg-white', !isBairroFilled);
+
+            const isLocalidadeFilled = !!data.localidade;
+            localidadeInput.value = data.localidade || '';
+            localidadeInput.readOnly = isLocalidadeFilled;
+            localidadeInput.classList.toggle('bg-gray-100', isLocalidadeFilled);
+            localidadeInput.classList.toggle('bg-white', !isLocalidadeFilled);
+            
+            const isUFFilled = !!data.uf;
+            ufInput.value = data.uf || '';
+            ufInput.readOnly = isUFFilled;
+            ufInput.classList.toggle('bg-gray-100', isUFFilled);
+            ufInput.classList.toggle('bg-white', !isUFFilled);
+            
+            if (isLogradouroFilled) {
+                isFieldsFilled = true; 
+            } else {
+                 logradouroInput.focus(); 
+            }
+        }
+        
+        function updateStatus(message, type = 'info') {
+            statusMessage.textContent = message;
+            statusMessage.classList.remove('text-red-500', 'text-green-500', 'text-gray-600');
+            if (type === 'error') {
+                 statusMessage.classList.add('text-red-500');
+            } else if (type === 'success') {
+                 statusMessage.classList.add('text-green-500');
+            } else {
+                 statusMessage.classList.add('text-gray-600');
+            }
+        }
+        
+        async function searchCepHandler() {
+            const cep = cepInput.value;
+            const cleanCep = cep.replace(/\D/g, '');
+            
+            if (cleanCep.length !== 8) {
+                setAddressFieldsState(false, true); 
+                updateStatus('CEP incompleto ou inválido.', 'info');
+                return;
+            }
+
+            loadingSpinner.classList.remove('hidden');
+            searchButton.disabled = true;
+            updateStatus('Buscando endereço...');
+            setAddressFieldsState(true, true); 
+
+            try {
+                const response = await fetch(`${API_URL}?cep=${cleanCep}`);
+                
+                // 1. LÊ O CORPO DA RESPOSTA COMO JSON, independentemente do status HTTP.
+                const result = await response.json();
+                
+                //alert("apos fetch:\n"+JSON.stringify(result)); 	
+
+                // 2. VERIFICA A PROPRIEDADE 'success' do JSON.
+                if (result.success) {
+                    fillAddressFields(result.data);
+                    updateStatus('Busca concluída.', 'success');
+                } else {
+                    // SE success: false (o que acontece no 404 do nosso PHP API)
+                    setAddressFieldsState(false, true); 
+                    
+                    // USA A MENSAGEM DE ERRO DO BACKEND
+                    updateStatus(`Erro: ${result.error}`, 'error'); 
+                    
+                    cepInput.focus(); // Retorna o foco para o campo CEP
+                }
+
+            } catch (error) {
+                // TRATA ERROS DE REDE OU JSON INVÁLIDO
+                setAddressFieldsState(false, true); 
+                updateStatus('Erro de comunicação ou rede. Verifique o servidor PHP.', 'error');
+                console.error("Erro fatal:", error);
+                cepInput.focus();
+            } finally {
+                loadingSpinner.classList.add('hidden');
+                searchButton.disabled = false;
+            }
+        }
+
+        // --- Event Listeners ---
+
+        cepInput.addEventListener('input', (event) => {
+            event.target.value = formatCEP(event.target.value);
+            updateStatus('');
+            
+            if (isFieldsFilled) {
+                setAddressFieldsState(false, true); 
+            }
+        });
+
+        cepInput.addEventListener('blur', (event) => {
+            const currentCep = event.target.value;
+            if (currentCep.replace(/\D/g, '').length === 8) {
+                searchCepHandler();
+            }
+        });
+        
+        searchButton.addEventListener('click', searchCepHandler);
+        
+        addressForm.addEventListener('submit', (event) => {
+            event.preventDefault();
+            alert('Formulário Enviado! (Em um projeto real, os dados seriam salvos agora.)');
+            console.log("Dados a serem enviados:", {
+                cep: cepInput.value,
+                logradouro: logradouroInput.value,
+                numero: document.getElementById('numero').value,
+                bairro: bairroInput.value,
+                localidade: localidadeInput.value,
+                uf: ufInput.value,
+            });
+        });
+        
+        document.addEventListener('DOMContentLoaded', () => {
+             setAddressFieldsState(false, true); 
+        });
+
+    </script>
+</body>
+</html>
